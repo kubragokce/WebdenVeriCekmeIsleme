@@ -1,0 +1,125 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Nov 30 01:19:00 2020
+
+@author: kubra
+"""
+#kütüphaneler
+from sklearn import preprocessing
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from nltk.tokenize import word_tokenize, sent_tokenize
+
+#veri çektiğimiz sitenin urlsini tanımladık
+url = "https://www.imdb.com/list/ls050782187/?sort=list_order,asc&st_dt=&mode=detail&page="
+table_data = []
+table_data1 = []
+table_data2 = []
+table_data3 = []
+table_data4 = []
+table_data5 = []
+
+for i in range(1,6):#her sayfa için url leri oluşturduk
+    newurl =url+str(i)
+    print(newurl)
+    r = requests.get(newurl)
+    soup = BeautifulSoup(r.content,"lxml")
+    
+    #veriyi alacağımız tabloyu bulduk
+    gelen_veri = soup.find_all("div",{"class":"article listo"})
+    movietable = (gelen_veri[0].contents)[len(gelen_veri[0].contents)-2]
+    movietable = movietable.find_all("div",{"class":"lister-item mode-detail"})
+    
+    for movie in movietable:
+        
+        #film isimlerini bulduk
+        movieheader = movie.find("div",{"class":"lister-item-content"})
+        movieheader = movieheader.find("h3")
+        moviename = movieheader.text
+        moviename= moviename.replace("\n","")
+        #kelimeleri ayırma
+        text=(moviename)
+        words=word_tokenize(text)
+        sentences=sent_tokenize(text)
+        
+        #film süresini bulduk
+        runtime = movie.find("p",{"class":"text-muted text-small"})
+        runtime = runtime.find("span",{"class":"runtime"}).text
+        runtime = runtime.replace("\n","")
+        
+        #film türünü bulduk
+        genre = movie.find("p",{"class":"text-muted text-small"})
+        genre = genre.find("span",{"class":"genre"}).text
+        genre = genre.replace("\n","")
+        #kelimeleri ayırma
+        text2=(genre)
+        words2=word_tokenize(text2)
+        sentences2=sent_tokenize(text2)
+        
+        #filmin oy puanını bulduk
+        rate=movie.find("div",{"class":"ipl-rating-widget"})
+        rate=rate.find("span",{"class":"ipl-rating-star__rating"}).text
+        rate = rate.replace("\n","")
+        
+        ###############################
+
+        #verileri excele geçirdik(tablo oluşturduk):
+        #film
+        table_data.append({'film':words[0:-3]})
+        df = pd.DataFrame(table_data)
+        df.to_excel('moviename_data.xlsx', index=True)
+        
+        #film tarihi
+        table_data1.append({'tarih':words[-2]}) 
+        df1 = pd.DataFrame(table_data1)
+        df1.to_excel('FilmTarih_data.xlsx', index=True)
+        
+        #film süresi
+        table_data2.append ({'sure':runtime})
+        df2 = pd.DataFrame(table_data2)
+        df2.to_excel('runtime_data.xlsx', index=True)
+        
+        #film türü
+        table_data3.append ({'tur':words2[0]})
+        df3 = pd.DataFrame(table_data3)
+        df3.to_excel('genre_data.xlsx', index=True)
+        
+        #film oy puanı
+        table_data4.append ({'oy':rate})
+        df4 = pd.DataFrame(table_data4)
+        df4.to_excel('rate_data.xlsx', index=True)
+        
+        #tabloları birleştirdik
+        s=pd.concat([df,df1,df2,df3,df4], axis=1)
+        s.to_excel('table_data.xlsx', index=True)
+
+        
+        
+##################################################################
+
+#veri ön işleme
+
+data = pd.read_excel('table_data.xlsx')
+
+label_encoder = preprocessing.LabelEncoder()
+data['tur_yeni']= label_encoder.fit_transform(data['tur'])
+data['film_yeni']= label_encoder.fit_transform(data['film'])
+data['sure_yeni']= label_encoder.fit_transform(data['sure'])
+data['oy_yeni']= label_encoder.fit_transform(data['oy'])
+
+##################################################################
+
+#kategorik veriler
+
+onehotencoder = preprocessing.OneHotEncoder()
+data['tur'] = pd.Categorical(data['tur'])
+tur_kategorik = pd.get_dummies(data['tur'])
+
+
+##################################################################
+
+#tabloları birleştirip excele aktardım.
+preprocessing_data=pd.concat([data,tur_kategorik], axis=1)
+preprocessing_data.to_excel('preprocessing_table_data.xlsx',index=True)
+
